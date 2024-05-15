@@ -4,6 +4,7 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <RTClib.h>
+#include <SD.h>
 
 // Structure to send data
 // Must match the receiver structure
@@ -16,15 +17,23 @@ struct_message TXdata; // Create a struct_message called data
 
 uint8_t masterAdress[] = {0x24, 0x0A, 0xC4, 0x0A, 0x0B, 0x24}; //made up address MARK: MAC ADRESS
 
+//MARK: USER VARIABLES
+#define NUM_SENSORS 9   //number of DS18B20 sensors, connected to the oneWireBus
+int GCTID =         1;
+
 //MARK: PIN DEFINITIONS
-const int oneWireBus = 4;
+#define oneWireBus  4
+#define SD_CS       5
+
+//MARK: SYSTEM VARIABLES
+//Do not touch these!!!
+char filename[25] = "";
+
 OneWire oneWire(oneWireBus);        // Setup a oneWire instance to communicate with any OneWire devices
 DallasTemperature sensors(&oneWire);// Pass our oneWire reference to Dallas Temperature sensor 
 
 RTC_DS3231 rtc; // Create a RTC object
 
-//MARK: USER VARIABLES
-#define NUM_SENSORS 9   //number of DS18B20 sensors, connected to the oneWireBus
 
 
 void checkActionID(int actionID, float value) { //MARK: ACTION IDs
@@ -113,6 +122,27 @@ const char* updateTimeStamp() {
     return(timestamp);
 }
 
+void logToSD(const char* timestamp, float* listOfValues) { //MARK: LOG TO SD
+    File dataFile = SD.open(filename, FILE_WRITE);
+
+    if (dataFile) {
+        for (int i = 0; i < NUM_SENSORS; i++) {
+            dataFile.print(timestamp);          //timestamp
+            dataFile.print(",");                //comma
+            dataFile.print(GCTID);              //GCTID
+            dataFile.print(",");                //comma
+            dataFile.print(i);                  //sensorID
+            dataFile.print(",");                //comma
+            dataFile.print(listOfValues[i]);    //temperature value
+        }
+        dataFile.println(); //new line
+        dataFile.close();
+    } else {
+        Serial.println("ERROR: opening data on SD card");
+    }
+        dataFile.close();
+}
+
 
 void setup() { // MARK: SETUP
     Serial.begin(115200);
@@ -129,6 +159,15 @@ void setup() { // MARK: SETUP
     }
     //rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); //uncomment to set the RTC to the compile time
     // End RTC Init -----------------------
+
+
+    // Begin SD Card Init -----------------------
+    if (!SD.begin(SD_CS)) {  // Change this to the correct CS pin!
+        Serial.println("SD-Card Initialization failed!");
+        return;
+    }
+    Serial.println("SD-Card Initialization done.");
+    // End SD Card Init -----------------------
 
 
     // Begin Init ESP-NOW -----------------------
@@ -152,6 +191,9 @@ void setup() { // MARK: SETUP
         return;
     }
     // End Init ESP-NOW -----------------------
+
+    sprintf(filename, "%s.txt", updateTimeStamp()); //create filename with timestamp of boot
+    Serial.print("Filename: "); Serial.println(filename);
 }
 
 
