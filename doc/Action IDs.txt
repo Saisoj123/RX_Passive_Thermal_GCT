@@ -3,6 +3,6 @@ Action IDs
 ACTION ID   ACTION              VALUE               DIRECTION       COMMENT
 200X        Temperature Awnser  Temperatur in       S --> M         X = sensor number
 8362        Hard Rest           0                   M --> S         
-3001        Temp data request   0                   M --> S         
+3001        Temp data request   X                   M --> S         X = 0: Dont log to internal SD-Card; X = 1: Log to internal SD card
 100X        Setup/Config-data   Value for config    M --> S         
 1001        

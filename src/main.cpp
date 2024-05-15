@@ -3,6 +3,7 @@
 #include <WiFi.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include <RTClib.h>
 
 // Structure to send data
 // Must match the receiver structure
@@ -20,41 +21,36 @@ const int oneWireBus = 4;
 OneWire oneWire(oneWireBus);        // Setup a oneWire instance to communicate with any OneWire devices
 DallasTemperature sensors(&oneWire);// Pass our oneWire reference to Dallas Temperature sensor 
 
+RTC_DS3231 rtc; // Create a RTC object
 
 //MARK: USER VARIABLES
 #define NUM_SENSORS 9   //number of DS18B20 sensors, connected to the oneWireBus
 
-void sendTemperatureReadings() {
-    float* readings = getTemperatureReadings();
-
-    for (int i = 0; i < NUM_SENSORS; i++) {
-        sendAction(i+2001, readings[i]);
-    }
-}
 
 void checkActionID(int actionID, float value) { //MARK: ACTION IDs
     switch (actionID) {
         case 8362:
-            Serial.print("ActionID: 8362 (Hard Rest)"); //later replace with actual action
+            Serial.println("ActionID: 8362 (Hard Rest)"); //later replace with actual action
             ESP.restart();
             break;
 
-        case 2345:
-            Serial.print("ActionID: 2345"); //later replace with actual action
+        case 3001:
+            Serial.println("ActionID: 3001 (Temperature Request)"); //later replace with actual action
+            
             break;
         
         case 3456:
-            Serial.print("ActionID: 3456"); //later replace with actual action
+            Serial.println("ActionID: 3456"); //later replace with actual action
             break;
         
         default:
-            Serial.print("Invalid actionID: ");
+            Serial.print("ERROR: Invalid actionID: ");
             Serial.println(actionID);
             break;
     }
 }
 
-// Callback when data is sent
+// Callback when data is sent MARK:CALLBACKS
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
     Serial.print("\r\nLast Packet Send Status:\t");
     Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
@@ -74,6 +70,23 @@ void OnDataReceived(const uint8_t *mac_addr, const uint8_t *RXdata_param, int RX
     checkActionID(local_RXdata.actionID, local_RXdata.value);
 }
 
+
+
+void sendAction(int actionID, float value) {
+    struct_message TXdata;
+    TXdata.actionID = actionID;
+    TXdata.value = value;
+
+    esp_err_t result = esp_now_send(masterAdress, (uint8_t *) &TXdata, sizeof(TXdata));
+
+    if (result == ESP_OK) {
+        Serial.println("SUCCESS: Action ID: " + String(actionID) + " with value: " + String(value));
+    }
+    else {
+        Serial.println("Error sending the action");
+    }
+}
+
 float* getTemperatureReadings() {
     float readings[NUM_SENSORS];
     sensors.requestTemperatures();  //caution: non-blocking
@@ -85,27 +98,38 @@ float* getTemperatureReadings() {
     return readings;
 }
 
-void sendAction(int actionID, float value) {
-    struct_message TXdata;
-    TXdata.actionID = actionID;
-    TXdata.value = value;
+void sendTemperatureReadings() {
+    float* readings = getTemperatureReadings();
 
-    esp_err_t result = esp_now_send(masterAdress, (uint8_t *) &TXdata, sizeof(TXdata));
-
-    if (result == ESP_OK) {
-        Serial.println("Action sent with success");
-    }
-    else {
-        Serial.println("Error sending the action");
+    for (int i = 0; i < NUM_SENSORS; i++) {
+        sendAction(i+2001, readings[i]);
     }
 }
 
-void setup() {
+const char* updateTimeStamp() {
+    DateTime now = rtc.now();
+    char timestamp[20];
+    sprintf(timestamp, "%04d-%02d-%02d %02d:%02d:%02d", now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second());
+    return(timestamp);
+}
+
+
+void setup() { // MARK: SETUP
     Serial.begin(115200);
 
     WiFi.mode(WIFI_STA);  // Set device as a Wi-Fi Station
 
     sensors.begin(); // Start up the library for the temperature sensors
+
+    // Begin RTC Init -----------------------
+    Wire.begin();
+    if (! rtc.begin()) {
+        Serial.println("Couldn't find RTC");
+        while (1);
+    }
+    //rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); //uncomment to set the RTC to the compile time
+    // End RTC Init -----------------------
+
 
     // Begin Init ESP-NOW -----------------------
     if (esp_now_init() != ESP_OK) {
@@ -131,9 +155,6 @@ void setup() {
 }
 
 
-
-void loop() {
-
-
+void loop() { // MARK: LOOP
 
 }
