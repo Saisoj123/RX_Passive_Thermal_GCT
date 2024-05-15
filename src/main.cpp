@@ -24,18 +24,29 @@ DallasTemperature sensors(&oneWire);// Pass our oneWire reference to Dallas Temp
 //MARK: USER VARIABLES
 #define NUM_SENSORS 9   //number of DS18B20 sensors, connected to the oneWireBus
 
+void sendTemperatureReadings() {
+    float* readings = getTemperatureReadings();
+
+    for (int i = 0; i < NUM_SENSORS; i++) {
+        sendAction(i+2001, readings[i]);
+    }
+}
 
 void checkActionID(int actionID, float value) { //MARK: ACTION IDs
     switch (actionID) {
-        case 1234:
-            Serial.print("ActionID: 1234"); //later replace with actual action
+        case 8362:
+            Serial.print("ActionID: 8362 (Hard Rest)"); //later replace with actual action
+            ESP.restart();
             break;
+
         case 2345:
             Serial.print("ActionID: 2345"); //later replace with actual action
             break;
+        
         case 3456:
             Serial.print("ActionID: 3456"); //later replace with actual action
             break;
+        
         default:
             Serial.print("Invalid actionID: ");
             Serial.println(actionID);
@@ -74,12 +85,25 @@ float* getTemperatureReadings() {
     return readings;
 }
 
+void sendAction(int actionID, float value) {
+    struct_message TXdata;
+    TXdata.actionID = actionID;
+    TXdata.value = value;
+
+    esp_err_t result = esp_now_send(masterAdress, (uint8_t *) &TXdata, sizeof(TXdata));
+
+    if (result == ESP_OK) {
+        Serial.println("Action sent with success");
+    }
+    else {
+        Serial.println("Error sending the action");
+    }
+}
+
 void setup() {
     Serial.begin(115200);
-    delay(1000);    // Delay to give time to Serial Monitor
 
-    // Set device as a Wi-Fi Station
-    WiFi.mode(WIFI_STA);
+    WiFi.mode(WIFI_STA);  // Set device as a Wi-Fi Station
 
     sensors.begin(); // Start up the library for the temperature sensors
 
@@ -90,11 +114,7 @@ void setup() {
     }
 
     esp_now_register_send_cb(OnDataSent);
-    esp_now_register_recv_cb(OnDataReceived); // Register the receive callback
-
-    // Set the values to send
-    TXdata.actionID = 123;
-    TXdata.value = 456;
+    esp_now_register_recv_cb(OnDataReceived); // Register callbacks
 
     // Peer info
     esp_now_peer_info_t peerInfo;
@@ -110,15 +130,10 @@ void setup() {
     // End Init ESP-NOW -----------------------
 }
 
+
+
 void loop() {
-    // Send message via ESP-NOW
-    esp_err_t result = esp_now_send(masterAdress, (uint8_t *) &TXdata, sizeof(TXdata));
-     
-    if (result == ESP_OK) {
-        Serial.println("Sent with success");
-    }
-    else {
-        Serial.println("Error sending the TXdata");
-    }
-    delay(2000);
+
+
+
 }
