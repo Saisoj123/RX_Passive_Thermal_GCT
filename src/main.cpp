@@ -11,12 +11,21 @@ typedef struct struct_message {
     float value;
 } struct_message;
 
-uint8_t masterAdress[] = {0x24, 0x0A, 0xC4, 0x0A, 0x0B, 0x24}; //made up address
+struct_message TXdata; // Create a struct_message called data
 
-// Create a struct_message called data
-struct_message TXdata;
+uint8_t masterAdress[] = {0x24, 0x0A, 0xC4, 0x0A, 0x0B, 0x24}; //made up address MARK: MAC ADRESS
 
-void checkActionID(int actionID, float value) {
+//MARK: PIN DEFINITIONS
+const int oneWireBus = 4;
+OneWire oneWire(oneWireBus);        // Setup a oneWire instance to communicate with any OneWire devices
+DallasTemperature sensors(&oneWire);// Pass our oneWire reference to Dallas Temperature sensor 
+
+
+//MARK: USER VARIABLES
+#define NUM_SENSORS 9   //number of DS18B20 sensors, connected to the oneWireBus
+
+
+void checkActionID(int actionID, float value) { //MARK: ACTION IDs
     switch (actionID) {
         case 1234:
             Serial.print("ActionID: 1234"); //later replace with actual action
@@ -54,6 +63,17 @@ void OnDataReceived(const uint8_t *mac_addr, const uint8_t *RXdata_param, int RX
     checkActionID(local_RXdata.actionID, local_RXdata.value);
 }
 
+float* getTemperatureReadings() {
+    float readings[NUM_SENSORS];
+    sensors.requestTemperatures();  //caution: non-blocking
+
+    for (int i = 0; i < NUM_SENSORS; i++) {
+        readings[i] = sensors.getTempCByIndex(i);
+    }
+
+    return readings;
+}
+
 void setup() {
     Serial.begin(115200);
     delay(1000);    // Delay to give time to Serial Monitor
@@ -61,7 +81,9 @@ void setup() {
     // Set device as a Wi-Fi Station
     WiFi.mode(WIFI_STA);
 
-    // Init ESP-NOW
+    sensors.begin(); // Start up the library for the temperature sensors
+
+    // Begin Init ESP-NOW -----------------------
     if (esp_now_init() != ESP_OK) {
         Serial.println("Error initializing ESP-NOW");
         return;
@@ -85,6 +107,7 @@ void setup() {
         Serial.println("Failed to add peer");
         return;
     }
+    // End Init ESP-NOW -----------------------
 }
 
 void loop() {
