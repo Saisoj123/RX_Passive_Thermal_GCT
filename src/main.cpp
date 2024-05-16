@@ -18,8 +18,8 @@ struct_message TXdata; // Create a struct_message called data
 uint8_t masterAdress[] = {0x24, 0x0A, 0xC4, 0x0A, 0x0B, 0x24}; //made up address MARK: MAC ADRESS
 
 //MARK: USER VARIABLES
-#define NUM_SENSORS 9   //number of DS18B20 sensors, connected to the oneWireBus
-int GCTID =         1;
+int numSens =       9;   //number of DS18B20 sensors, connected to the oneWireBus
+int GCTID   =       1;
 
 //MARK: PIN DEFINITIONS
 #define oneWireBus  4
@@ -36,7 +36,7 @@ RTC_DS3231 rtc; // Create a RTC object
 
 
 
-void checkActionID(int actionID, float value) { //MARK: ACTION IDs
+void checkActionID(int actionID, float value) { //MARK: CHECK ACTION IDs
     switch (actionID) {
         case 8362:
             Serial.println("ActionID: 8362 (Hard Rest)"); //later replace with actual action
@@ -45,7 +45,8 @@ void checkActionID(int actionID, float value) { //MARK: ACTION IDs
 
         case 3001:
             Serial.println("ActionID: 3001 (Temperature Request)"); //later replace with actual action
-            
+            sendTemperatureReadings();
+            logToSD(updateTimeStamp(), getTemperatureReadings());
             break;
         
         case 3456:
@@ -97,10 +98,10 @@ void sendAction(int actionID, float value) {
 }
 
 float* getTemperatureReadings() {
-    float readings[NUM_SENSORS];
+    float readings[numSens];
     sensors.requestTemperatures();  //caution: non-blocking
 
-    for (int i = 0; i < NUM_SENSORS; i++) {
+    for (int i = 0; i < numSens; i++) {
         readings[i] = sensors.getTempCByIndex(i);
     }
 
@@ -110,7 +111,7 @@ float* getTemperatureReadings() {
 void sendTemperatureReadings() {
     float* readings = getTemperatureReadings();
 
-    for (int i = 0; i < NUM_SENSORS; i++) {
+    for (int i = 0; i < numSens; i++) {
         sendAction(i+2001, readings[i]);
     }
 }
@@ -126,7 +127,7 @@ void logToSD(const char* timestamp, float* listOfValues) { //MARK: LOG TO SD
     File dataFile = SD.open(filename, FILE_WRITE);
 
     if (dataFile) {
-        for (int i = 0; i < NUM_SENSORS; i++) {
+        for (int i = 0; i < numSens; i++) {
             dataFile.print(timestamp);          //timestamp
             dataFile.print(",");                //comma
             dataFile.print(GCTID);              //GCTID
