@@ -36,51 +36,6 @@ RTC_DS3231 rtc; // Create a RTC object
 
 
 
-void checkActionID(int actionID, float value) { //MARK: CHECK ACTION IDs
-    switch (actionID) {
-        case 8362:
-            Serial.println("ActionID: 8362 (Hard Rest)"); //later replace with actual action
-            ESP.restart();
-            break;
-
-        case 3001:
-            Serial.println("ActionID: 3001 (Temperature Request)"); //later replace with actual action
-            sendTemperatureReadings();
-            logToSD(updateTimeStamp(), getTemperatureReadings());
-            break;
-        
-        case 3456:
-            Serial.println("ActionID: 3456"); //later replace with actual action
-            break;
-        
-        default:
-            Serial.print("ERROR: Invalid actionID: ");
-            Serial.println(actionID);
-            break;
-    }
-}
-
-// Callback when data is sent MARK:CALLBACKS
-void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-    Serial.print("\r\nLast Packet Send Status:\t");
-    Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
-}
-
-// Callback when data is received
-void OnDataReceived(const uint8_t *mac_addr, const uint8_t *RXdata_param, int RXdata_len) {
-    struct_message local_RXdata;
-    memcpy(&local_RXdata, RXdata_param, RXdata_len);
-
-    // Process the received data
-    Serial.print("Received actionID: ");
-    Serial.println(local_RXdata.actionID);
-    Serial.print("Received value: ");
-    Serial.println(local_RXdata.value);
-
-    checkActionID(local_RXdata.actionID, local_RXdata.value);
-}
-
-
 
 void sendAction(int actionID, float value) {
     struct_message TXdata;
@@ -142,6 +97,51 @@ void logToSD(const char* timestamp, float* listOfValues) { //MARK: LOG TO SD
         Serial.println("ERROR: opening data on SD card");
     }
         dataFile.close();
+}
+
+void checkActionID(int actionID, float value) { //MARK: CHECK ACTION IDs
+    switch (actionID) {
+        case 8362:
+            Serial.println("ActionID: 8362 (Hard Rest)"); //later replace with actual action
+            ESP.restart();
+            break;
+
+        case 3001:
+            Serial.println("ActionID: 3001 (Temperature Request)"); //later replace with actual action
+            sendTemperatureReadings();
+            logToSD(updateTimeStamp(), getTemperatureReadings());
+            break;
+        
+        case 3456:
+            Serial.println("ActionID: 3456"); //later replace with actual action
+            break;
+        
+        default:
+            Serial.print("ERROR: Invalid actionID: ");
+            Serial.println(actionID);
+            break;
+    }
+}
+
+
+// Callback when data is sent MARK:CALLBACKS
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+    Serial.print("\r\nLast Packet Send Status:\t");
+    Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+}
+
+// Callback when data is received
+void OnDataReceived(const uint8_t *mac_addr, const uint8_t *RXdata_param, int RXdata_len) {
+    struct_message local_RXdata;
+    memcpy(&local_RXdata, RXdata_param, RXdata_len);
+
+    // Process the received data
+    Serial.print("Received actionID: ");
+    Serial.println(local_RXdata.actionID);
+    Serial.print("Received value: ");
+    Serial.println(local_RXdata.value);
+
+    checkActionID(local_RXdata.actionID, local_RXdata.value);
 }
 
 
