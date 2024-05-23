@@ -25,6 +25,11 @@ int GCTID   =       1;
 #define oneWireBus  4
 #define SD_CS       5
 
+int SD_CS_PIN   = 5;    // Chip Select pin //MARK: SPI_PIN
+int SCK_PIN     = 18;   // Clock pin
+int MISO_PIN    = 19;   // Master In Slave Out pin
+int MOSI_PIN    = 23;   // Master Out Slave In pin
+
 //MARK: SYSTEM VARIABLES
 //Do not touch these!!!
 char filename[25] = "";
@@ -147,6 +152,8 @@ void OnDataReceived(const uint8_t *mac_addr, const uint8_t *RXdata_param, int RX
 
 void setup() { // MARK: SETUP
     Serial.begin(115200);
+
+    SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, SD_CS_PIN);
 
     WiFi.mode(WIFI_STA);  // Set device as a Wi-Fi Station
 
