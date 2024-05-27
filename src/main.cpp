@@ -9,8 +9,22 @@ typedef struct struct_message {
     int actionID;
     float value;
 } struct_message;
-
 struct_message TXdata; // Create a struct_message called data
+
+
+typedef struct temp {
+  int actionID;
+  float sens1;
+  float sens2;
+  float sens3;
+  float sens4;
+  float sens5;
+  float sens6;
+  float sens7;
+  float sens8;
+  float sens9;
+} temp;
+temp tempData; // Create a struct_message called data
 
 //MARK: USER VARIABLES
 int GCTID   =       0;
@@ -31,14 +45,10 @@ char filename[25] = "";
 #define NUM_SENSORS 9
 char timestamp[20];  // Make this a global variable
 char line[1000];
+#define numMasters 1
 
-uint8_t broadcastAddresses[][6] = {
-    {0x48, 0xE7, 0x29, 0x8C, 0x78, 0x30},
-    {0x48, 0xE7, 0x29, 0x8C, 0x6B, 0x5C},
-    {0x48, 0xE7, 0x29, 0x8C, 0x72, 0x50},
-    {0x48, 0xE7, 0x29, 0x29, 0x79, 0x68}
-};
-esp_now_peer_info_t peerInfo[4];
+uint8_t masterAdress[] = {0x48, 0xE7, 0x29, 0x8C, 0x73, 0x18};
+esp_now_peer_info_t peerInfo[numMasters];
 
 RTC_DS3231 rtc;
 
@@ -52,19 +62,6 @@ DallasTemperature sensors(&oneWire);
 
 // Create an array of SensorData structures
 SensorData sensorData[NUM_SENSORS];
-
-void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-    Serial.print("\r\nLast Packet Send Status:\t");
-    Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
-}
-
-
-void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
-    int receivedData;
-    memcpy(&receivedData, incomingData, sizeof(receivedData));
-    Serial.print("Received: ");
-    Serial.println(receivedData);
-}
 
 
 void get_temperature() {
@@ -101,11 +98,99 @@ void print_temperature() {
 }
 
 void send_data(int actionID, float value){
-  for (int i = 0; i < 4; i++) {
-    TXdata.actionID = actionID;
-    TXdata.value = value;
-    esp_err_t result = esp_now_send(broadcastAddresses[i], (uint8_t *) &TXdata, sizeof(TXdata));
+  TXdata.actionID = actionID;
+  TXdata.value = value;
+  esp_err_t result = esp_now_send(masterAdress, (uint8_t *) &TXdata, sizeof(TXdata));
+  Serial.print("Send: ");
+  Serial.print(actionID);
+  Serial.print(", ");
+  Serial.println(value);
+  //delay(1000);
+}
+
+void sendTempData(){ //MARK: SEND TEMPERATURE DATA
+  get_temperature();
+  tempData.actionID = 2001;
+  tempData.sens1 = sensorData[0].temperature;
+  tempData.sens2 = sensorData[1].temperature;
+  tempData.sens3 = sensorData[2].temperature;
+  tempData.sens4 = sensorData[3].temperature;
+  tempData.sens5 = sensorData[4].temperature;
+  tempData.sens6 = sensorData[5].temperature;
+  tempData.sens7 = sensorData[6].temperature;
+  tempData.sens8 = sensorData[7].temperature;
+  tempData.sens9 = sensorData[8].temperature;
+  esp_err_t result = esp_now_send(masterAdress, (uint8_t *) &tempData, sizeof(tempData));
+
+
+  
+
+
+  // get_temperature();
+  // for (int i = 0; i < NUM_SENSORS; i++) {
+  //   send_data(2001 + i, sensorData[i].temperature);
+  // }
+
+  // send_data(2001, sensorData[0].temperature);
+  // send_data(2002, sensorData[1].temperature);
+  // send_data(2003, sensorData[2].temperature);
+  // send_data(2004, sensorData[3].temperature);
+  // send_data(2005, sensorData[4].temperature);
+  // send_data(2006, sensorData[5].temperature);
+  // send_data(2007, sensorData[6].temperature);
+  // send_data(2008, sensorData[7].temperature);
+  // send_data(2009, sensorData[8].temperature);
+}
+
+void checkActionID(int actionID){
+  switch (actionID) {
+    case 3001://Full temperature data request
+      Serial.println("Full temperature data request");
+      sendTempData();
+      break;
+    case 2:
+      Serial.println("Action 2");
+      break;
+    case 3:
+      Serial.println("Action 3");
+      break;
+    case 4:
+      Serial.println("Action 4");
+      break;
+    case 5:
+      Serial.println("Action 5");
+      break;
+    case 6:
+      Serial.println("Action 6");
+      break;
+    case 7:
+      Serial.println("Action 7");
+      break;
+    case 8:
+      Serial.println("Action 8");
+      break;
+    case 9:
+      Serial.println("Action 9");
+      break;
+    default:
+      Serial.println("Action not found");
+      break;
   }
+}
+
+
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+    Serial.print("\r\nLast Packet Send Status:\t");
+    Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+}
+
+
+void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
+    int receivedData;
+    memcpy(&receivedData, incomingData, sizeof(receivedData));
+    Serial.print("Received: ");
+    Serial.println(receivedData);
+    checkActionID(receivedData);
 }
 
 
@@ -124,8 +209,8 @@ void setup() { //MARK: SETUP
     esp_now_register_send_cb(OnDataSent);
     esp_now_register_recv_cb(OnDataRecv); // Register callbacks
 
-    for (int i = 0; i < 4; i++) {
-        memcpy(peerInfo[i].peer_addr, broadcastAddresses[i], 6);
+    for (int i = 0; i < numMasters; i++) {
+        memcpy(peerInfo[i].peer_addr, masterAdress, 6);
         peerInfo[i].channel = 0;  
         peerInfo[i].encrypt = false;
         
@@ -148,5 +233,6 @@ void setup() { //MARK: SETUP
 }
 
 void loop(){
-  Serial.println(create_file_chunck());
+  //Serial.println(create_file_chunck());
+  //delay(10000);
 }
