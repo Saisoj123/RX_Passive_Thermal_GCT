@@ -3,6 +3,7 @@
 #include <RTClib.h>
 #include <esp_now.h>
 #include <WiFi.h>
+#include <SD.h>
 
 // Structure to send data, Must match the receiver structure
 typedef struct struct_message {
@@ -28,6 +29,7 @@ temp tempData; // Create a struct_message called data
 
 //MARK: USER VARIABLES
 int GCTID   =       0;
+char fileName[25] = "/data_GCT1.csv"; //file name for the data file on the SD card
 
 //MARK: PIN DEFINITIONS
 #define oneWireBus  4
@@ -43,9 +45,11 @@ int MOSI_PIN    = 23;   // Master Out Slave In pin
 //Do not touch these!!!
 char filename[25] = "";
 #define NUM_SENSORS 9
-char timestamp[20];  // Make this a global variable
+char timestamp[19];  // Make this a global variable
 char line[1000];
 #define numMasters 1
+File file;
+
 
 uint8_t masterAdress[] = {0x48, 0xE7, 0x29, 0x8C, 0x73, 0x18};
 esp_now_peer_info_t peerInfo[numMasters];
@@ -71,76 +75,76 @@ void get_temperature() {
   }
 }
 
+
 const char* get_timestamp() {
     DateTime now = rtc.now();
     sprintf(timestamp, "%04d-%02d-%02d %02d:%02d:%02d", now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second());
     return timestamp;
 }
 
-const char* create_file_chunck() {
-  const char* temp_timestamp = get_timestamp();
-  get_temperature();
-
-  sprintf(line, "%s,%d,1,%.4f\n%s,%d,2,%.4f\n%s,%d,3,%.4f\n%s,%d,4,%.4f\n%s,%d,5,%.4f\n%s,%d,6,%.4f\n%s,%d,7,%.4f\n%s,%d,8,%.4f\n%s,%d,9,%.4f\n", temp_timestamp, GCTID, sensorData[0].temperature, temp_timestamp, GCTID, sensorData[1].temperature, temp_timestamp, GCTID, sensorData[2].temperature, temp_timestamp, GCTID, sensorData[3].temperature, temp_timestamp, GCTID, sensorData[4].temperature, temp_timestamp, GCTID, sensorData[5].temperature, temp_timestamp, GCTID, sensorData[6].temperature, temp_timestamp, GCTID, sensorData[7].temperature, temp_timestamp, GCTID, sensorData[8].temperature);
-  return line;
-}
-
-//-------------------MARK: DEBUG-PRINTS-------------------
-
 void print_temperature() {
-  for (int i = 0; i < NUM_SENSORS; i++) {
-    Serial.print("Sensor ");
-    Serial.print(i);
-    Serial.print(" temperature: ");
-    Serial.println(sensorData[i].temperature);
-  }
-  Serial.println();
+    for (int i = 0; i < NUM_SENSORS; i++) {
+        Serial.print("Sensor ");
+        Serial.print(i);
+        Serial.print(" temperature: ");
+        Serial.println(sensorData[i].temperature);
+    }
+    Serial.println();
 }
+
 
 void send_data(int actionID, float value){
-  TXdata.actionID = actionID;
-  TXdata.value = value;
-  esp_err_t result = esp_now_send(masterAdress, (uint8_t *) &TXdata, sizeof(TXdata));
-  Serial.print("Send: ");
-  Serial.print(actionID);
-  Serial.print(", ");
-  Serial.println(value);
-  //delay(1000);
+    TXdata.actionID = actionID;
+    TXdata.value = value;
+    esp_err_t result = esp_now_send(masterAdress, (uint8_t *) &TXdata, sizeof(TXdata));
+    Serial.print("Send: ");
+    Serial.print(actionID);
+    Serial.print(", ");
+    Serial.println(value);
+    //delay(1000);
 }
+
+
+String tempToString(String timestamp) {//MARK: To String
+    String data = "";
+    data += timestamp + "," + String(GCTID) + ",1," + String(tempData.sens1) + "\n";
+    data += timestamp + "," + String(GCTID) + ",2," + String(tempData.sens2) + "\n";
+    data += timestamp + "," + String(GCTID) + ",3," + String(tempData.sens3) + "\n";
+    data += timestamp + "," + String(GCTID) + ",4," + String(tempData.sens4) + "\n";
+    data += timestamp + "," + String(GCTID) + ",5," + String(tempData.sens5) + "\n";
+    data += timestamp + "," + String(GCTID) + ",6," + String(tempData.sens6) + "\n";
+    data += timestamp + "," + String(GCTID) + ",7," + String(tempData.sens7) + "\n";
+    data += timestamp + "," + String(GCTID) + ",8," + String(tempData.sens8) + "\n";
+    data += timestamp + "," + String(GCTID) + ",9," + String(tempData.sens9) + "\n";
+    return data;
+    Serial.println(data);
+}
+
+
+void writeToSD(String dataString) { //MARK: Write to SD
+    //Serial.print (dataString);
+    file = SD.open(fileName, FILE_APPEND); // Open the file in append mode
+    file.print(dataString);
+    file.close();
+}
+
 
 void sendTempData(){ //MARK: SEND TEMPERATURE DATA
-  get_temperature();
-  tempData.actionID = 2001;
-  tempData.sens1 = sensorData[0].temperature;
-  tempData.sens2 = sensorData[1].temperature;
-  tempData.sens3 = sensorData[2].temperature;
-  tempData.sens4 = sensorData[3].temperature;
-  tempData.sens5 = sensorData[4].temperature;
-  tempData.sens6 = sensorData[5].temperature;
-  tempData.sens7 = sensorData[6].temperature;
-  tempData.sens8 = sensorData[7].temperature;
-  tempData.sens9 = sensorData[8].temperature;
-  esp_err_t result = esp_now_send(masterAdress, (uint8_t *) &tempData, sizeof(tempData));
-
-
-  
-
-
-  // get_temperature();
-  // for (int i = 0; i < NUM_SENSORS; i++) {
-  //   send_data(2001 + i, sensorData[i].temperature);
-  // }
-
-  // send_data(2001, sensorData[0].temperature);
-  // send_data(2002, sensorData[1].temperature);
-  // send_data(2003, sensorData[2].temperature);
-  // send_data(2004, sensorData[3].temperature);
-  // send_data(2005, sensorData[4].temperature);
-  // send_data(2006, sensorData[5].temperature);
-  // send_data(2007, sensorData[6].temperature);
-  // send_data(2008, sensorData[7].temperature);
-  // send_data(2009, sensorData[8].temperature);
+    get_temperature();
+    tempData.actionID = 2001;
+    tempData.sens1 = sensorData[0].temperature;
+    tempData.sens2 = sensorData[1].temperature;
+    tempData.sens3 = sensorData[2].temperature;
+    tempData.sens4 = sensorData[3].temperature;
+    tempData.sens5 = sensorData[4].temperature;
+    tempData.sens6 = sensorData[5].temperature;
+    tempData.sens7 = sensorData[6].temperature;
+    tempData.sens8 = sensorData[7].temperature;
+    tempData.sens9 = sensorData[8].temperature;
+    writeToSD(tempToString(get_timestamp()));
+    esp_err_t result = esp_now_send(masterAdress, (uint8_t *) &tempData, sizeof(tempData));
 }
+
 
 void checkActionID(int actionID){
   switch (actionID) {
@@ -148,30 +152,15 @@ void checkActionID(int actionID){
       Serial.println("Full temperature data request");
       sendTempData();
       break;
+
     case 2:
       Serial.println("Action 2");
       break;
+
     case 3:
       Serial.println("Action 3");
       break;
-    case 4:
-      Serial.println("Action 4");
-      break;
-    case 5:
-      Serial.println("Action 5");
-      break;
-    case 6:
-      Serial.println("Action 6");
-      break;
-    case 7:
-      Serial.println("Action 7");
-      break;
-    case 8:
-      Serial.println("Action 8");
-      break;
-    case 9:
-      Serial.println("Action 9");
-      break;
+
     default:
       Serial.println("Action not found");
       break;
@@ -197,7 +186,6 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
 void setup() { //MARK: SETUP
   Serial.begin(115200);   // Start the Serial Monitor
 
-
   //--------------- ESP NOW - INIT - END -----------------
     WiFi.mode(WIFI_STA);
 
@@ -221,18 +209,25 @@ void setup() { //MARK: SETUP
     }
   //--------------- ESP NOW - INIT - END -----------------
 
+  //--------------- SD CARD - INIT - START -----------------
+  if (!SD.begin(SD_CS_PIN)) {
+    Serial.println("Card Mount Failed");
+    return;
+  }
+  //--------------- SD CARD - INIT - END  ------------------
 
+  //--------------- DS18B20 - INIT - START -----------------
   sensors.begin();        // Start the DS18B20 sensors
+  //--------------- DS18B20 - INIT - END -----------------
 
+  //--------------- RTC - INIT - START -----------------
   if (! rtc.begin()) {
     Serial.println("Could not find RTC!");
     while (1);
   }
   //rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); //uncomment to set the RTC to the compile time
-
+  //--------------- RTC - INIT - END -----------------
 }
 
 void loop(){
-  //Serial.println(create_file_chunck());
-  //delay(10000);
 }
