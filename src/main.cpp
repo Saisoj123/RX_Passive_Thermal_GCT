@@ -4,6 +4,8 @@
 #include <esp_now.h>
 #include <WiFi.h>
 #include <SD.h>
+#include <Adafruit_NeoPixel.h>
+
 
 // Structure to send data, Must match the receiver structure
 typedef struct struct_message {
@@ -34,6 +36,7 @@ char fileName[25] = "/data_GCT1.csv"; //file name for the data file on the SD ca
 //MARK: PIN DEFINITIONS
 #define oneWireBus  4
 #define SD_CS       5
+#define LED_PIN     2
 
 int SD_CS_PIN   = 5;    // Chip Select pin //MARK: SPI_PIN
 int SCK_PIN     = 18;   // Clock pin
@@ -50,6 +53,7 @@ char line[1000];
 #define numMasters 1
 File file;
 
+Adafruit_NeoPixel strip(1, LED_PIN, NEO_GRB + NEO_KHZ800);  // Create an instance of the Adafruit_NeoPixel class
 
 uint8_t masterAdress[] = {0x48, 0xE7, 0x29, 0x8C, 0x73, 0x18};
 esp_now_peer_info_t peerInfo[numMasters];
@@ -186,6 +190,11 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
 void setup() { //MARK: SETUP
   Serial.begin(115200);   // Start the Serial Monitor
 
+  //------------------ NEOPIXEL - INIT - BEGIN ------------------
+  strip.begin(); // Initialize the NeoPixel library
+  strip.show();  // Initialize all pixels to 'off'
+  //------------------ NEOPIXEL - INIT - END ------------------
+
   //--------------- ESP NOW - INIT - END -----------------
     WiFi.mode(WIFI_STA);
 
@@ -230,4 +239,6 @@ void setup() { //MARK: SETUP
 }
 
 void loop(){
+  strip.setPixelColor(0, strip.ColorHSV(0, 255, 255));
+  strip.show();
 }
