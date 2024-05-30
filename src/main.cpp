@@ -245,6 +245,7 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
     Serial.print("Received: ");
     Serial.println(receivedData);
     checkActionID(receivedData);
+    sinceLastConnection = millis(); // reset the timer for the last connection
 }
 
 
@@ -301,5 +302,11 @@ void setup() { //MARK: SETUP
 }
 
 void loop(){
-  updateStatusLED(2);
+  unsigned long currentConection = millis();
+  if (currentConection - sinceLastConnection > pingInterval+1000) {
+    updateStatusLED(5);
+  }else{
+      updateStatusLED(2);
+  }
+  Serial.println(currentConection - sinceLastConnection);
 }
