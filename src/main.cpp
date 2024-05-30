@@ -74,12 +74,12 @@ DallasTemperature sensors(&oneWire);
 SensorData sensorData[NUM_SENSORS];
 
 
-void blinkLED(int red, int green, int blue) {
+void blinkLED(int red, int green, int blue, int blinkIntervall) {
     static unsigned long previousMillis = 0;
     static bool ledState = false;
     unsigned long currentMillis = millis();
 
-    if (currentMillis - previousMillis >= 1000) {
+    if (currentMillis - previousMillis >= blinkIntervall) {
         previousMillis = currentMillis;
         ledState = !ledState;
 
@@ -94,7 +94,7 @@ void blinkLED(int red, int green, int blue) {
 }
 
 
-void updateStatusLED(int status){ //MARK: Update status LED
+void updateStatusLED(int status, int blinkIntervall = 1000){ //MARK: Update status LED
     switch (status)
     {
 
@@ -106,7 +106,7 @@ void updateStatusLED(int status){ //MARK: Update status LED
         break;
     
     case 2:
-        blinkLED(0, 255, 0);    // Blink the LED in green
+        blinkLED(0, 255, 0, blinkIntervall);    // Blink the LED in green
         break;
     
     case 3:
@@ -118,11 +118,11 @@ void updateStatusLED(int status){ //MARK: Update status LED
         break;
 
     case 5:
-        blinkLED(255, 0, 0);    // Blink the LED in red
+        blinkLED(255, 0, 0, blinkIntervall);    // Blink the LED in red
         break;
 
     case 6:
-        blinkLED(255, 100, 0);  // Blink the LED in yellow
+        blinkLED(255, 100, 0, blinkIntervall);  // Blink the LED in yellow
         break;
 
     case 7:
@@ -281,9 +281,9 @@ void setup() { //MARK: SETUP
   //--------------- ESP NOW - INIT - END -----------------
 
   //--------------- SD CARD - INIT - START -----------------
-  if (!SD.begin(SD_CS_PIN)) {
+  while (!SD.begin(SD_CS_PIN)){
+    updateStatusLED(5);
     Serial.println("Card Mount Failed");
-    return;
   }
   //--------------- SD CARD - INIT - END  ------------------
 
@@ -294,7 +294,8 @@ void setup() { //MARK: SETUP
   //--------------- RTC - INIT - START -----------------
   if (! rtc.begin()) {
     Serial.println("Could not find RTC!");
-    while (1);
+    updateStatusLED(4);
+    while (true){}
   }
   //rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); //uncomment to set the RTC to the compile time
   //--------------- RTC - INIT - END -----------------
@@ -304,7 +305,7 @@ void setup() { //MARK: SETUP
 void loop(){
   unsigned long currentConection = millis();
   if (currentConection - sinceLastConnection > pingInterval+1000) {
-    updateStatusLED(5);
+    updateStatusLED(6);
   }else{
       updateStatusLED(2);
   }
