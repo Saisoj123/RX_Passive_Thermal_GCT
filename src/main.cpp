@@ -30,9 +30,9 @@ typedef struct temp {
 temp tempData; // Create a struct_message called data
 
 //MARK: USER VARIABLES
-int GCTID   =       0;
+int GCTID   =       0;                //0 to 3
 char fileName[25] = "/data_GCT1.csv"; //file name for the data file on the SD card
-int pingInterval = 1000;
+int pingInterval = 1000;              //500 to inf
 
 //MARK: PIN DEFINITIONS
 #define oneWireBus  4
@@ -211,7 +211,11 @@ void sendTempData(){ //MARK: SEND TEMPERATURE DATA
     tempData.sens7 = sensorData[6].temperature;
     tempData.sens8 = sensorData[7].temperature;
     tempData.sens9 = sensorData[8].temperature;
-    writeToSD(tempToString(get_timestamp()));
+    
+    if (loggingStatus){
+      writeToSD(tempToString(get_timestamp()));
+    }
+    
     esp_err_t result = esp_now_send(masterAdress, (uint8_t *) &tempData, sizeof(tempData));
 }
 
@@ -296,6 +300,16 @@ void setup() { //MARK: SETUP
     updateStatusLED(5);
     Serial.println("Card Mount Failed");
   }
+
+  strncpy(fileName, "/data_GCT1.csv", sizeof(fileName));
+  File file = SD.open(fileName, FILE_APPEND);
+    
+  while(!file){
+      Serial.println("Failed to open file for writing");
+      updateStatusLED(5);
+  }
+    
+    file.close();
   //--------------- SD CARD - INIT - END  ------------------
 
   //--------------- DS18B20 - INIT - START -----------------
