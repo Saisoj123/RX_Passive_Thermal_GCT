@@ -54,6 +54,7 @@ char line[1000];
 #define numMasters 1
 File file;
 unsigned long sinceLastConnection = 0;
+bool loggingStatus = false;
 
 Adafruit_NeoPixel strip(1, LED_PIN, NEO_GRB + NEO_KHZ800);  // Create an instance of the Adafruit_NeoPixel class
 
@@ -224,7 +225,17 @@ void checkActionID(int actionID){
 
     case 1001:
       Serial.println("Connection test");
-sinceLastConnection = millis(); // reset the timer for the last connection
+      sinceLastConnection = millis(); // reset the timer for the last connection
+      break;
+
+    case 1002:
+      Serial.println("Start logging");
+      loggingStatus = true;
+      break;
+    
+    case 1003:
+      Serial.println("Stop logging");
+      loggingStatus = false;
       break;
 
     default:
@@ -307,6 +318,11 @@ void loop(){
   if (currentConection - sinceLastConnection > pingInterval+1000) {
     updateStatusLED(6);
   }else{
-    updateStatusLED(2);
+    if (loggingStatus)
+    {
+      updateStatusLED(3);
+    }else{
+      updateStatusLED(2);
+    }
   }
 }
