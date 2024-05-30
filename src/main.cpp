@@ -222,8 +222,9 @@ void checkActionID(int actionID){
       sendTempData();
       break;
 
-    case 2:
-      Serial.println("Dummy Action 2");
+    case 1001:
+      Serial.println("Connection test");
+sinceLastConnection = millis(); // reset the timer for the last connection
       break;
 
     default:
@@ -245,7 +246,6 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
     Serial.print("Received: ");
     Serial.println(receivedData);
     checkActionID(receivedData);
-    sinceLastConnection = millis(); // reset the timer for the last connection
 }
 
 
@@ -307,7 +307,6 @@ void loop(){
   if (currentConection - sinceLastConnection > pingInterval+1000) {
     updateStatusLED(6);
   }else{
-      updateStatusLED(2);
+    updateStatusLED(2);
   }
-  Serial.println(currentConection - sinceLastConnection);
 }
