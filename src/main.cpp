@@ -32,6 +32,7 @@ temp tempData; // Create a struct_message called data
 //MARK: USER VARIABLES
 int GCTID   =       0;
 char fileName[25] = "/data_GCT1.csv"; //file name for the data file on the SD card
+int pingInterval = 1000;
 
 //MARK: PIN DEFINITIONS
 #define oneWireBus  4
@@ -52,6 +53,7 @@ char timestamp[19];  // Make this a global variable
 char line[1000];
 #define numMasters 1
 File file;
+unsigned long sinceLastConnection = 0;
 
 Adafruit_NeoPixel strip(1, LED_PIN, NEO_GRB + NEO_KHZ800);  // Create an instance of the Adafruit_NeoPixel class
 
@@ -70,6 +72,69 @@ DallasTemperature sensors(&oneWire);
 
 // Create an array of SensorData structures
 SensorData sensorData[NUM_SENSORS];
+
+
+void blinkLED(int red, int green, int blue) {
+    static unsigned long previousMillis = 0;
+    static bool ledState = false;
+    unsigned long currentMillis = millis();
+
+    if (currentMillis - previousMillis >= 1000) {
+        previousMillis = currentMillis;
+        ledState = !ledState;
+
+        if (ledState) {
+            strip.setPixelColor(0, strip.Color(red, green, blue));
+        } else {
+            strip.setPixelColor(0, strip.Color(0, 0, 0));
+        }
+
+        strip.show();
+    }
+}
+
+
+void updateStatusLED(int status){ //MARK: Update status LED
+    switch (status)
+    {
+
+    case 0:
+        strip.setPixelColor(0, strip.Color(0, 0, 0)); // Turn off the LED
+        break;
+    case 1:
+        strip.setPixelColor(0, strip.Color(255, 100, 0));   // Constant yellow
+        break;
+    
+    case 2:
+        blinkLED(0, 255, 0);    // Blink the LED in green
+        break;
+    
+    case 3:
+        strip.setPixelColor(0, strip.Color(0, 255, 0)); // Constant green
+        break;
+
+    case 4:
+        strip.setPixelColor(0, strip.Color(255, 0, 0)); // Constant red
+        break;
+
+    case 5:
+        blinkLED(255, 0, 0);    // Blink the LED in red
+        break;
+
+    case 6:
+        blinkLED(255, 100, 0);  // Blink the LED in yellow
+        break;
+
+    case 7:
+        strip.setPixelColor(0, strip.Color(0, 0, 255)); // Constant blue
+        break;
+    
+    default:
+        break;
+    }
+
+    strip.show();
+}
 
 
 void get_temperature() {
@@ -158,11 +223,7 @@ void checkActionID(int actionID){
       break;
 
     case 2:
-      Serial.println("Action 2");
-      break;
-
-    case 3:
-      Serial.println("Action 3");
+      Serial.println("Dummy Action 2");
       break;
 
     default:
@@ -194,7 +255,7 @@ void setup() { //MARK: SETUP
   strip.begin(); // Initialize the NeoPixel library
   strip.show();  // Initialize all pixels to 'off'
   //------------------ NEOPIXEL - INIT - END ------------------
-
+  updateStatusLED(1); 
   //--------------- ESP NOW - INIT - END -----------------
     WiFi.mode(WIFI_STA);
 
@@ -236,9 +297,9 @@ void setup() { //MARK: SETUP
   }
   //rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); //uncomment to set the RTC to the compile time
   //--------------- RTC - INIT - END -----------------
+  updateStatusLED(0);
 }
 
 void loop(){
-  strip.setPixelColor(0, strip.ColorHSV(0, 255, 255));
-  strip.show();
+  updateStatusLED(2);
 }
