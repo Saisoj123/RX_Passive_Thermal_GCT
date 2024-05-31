@@ -30,9 +30,10 @@ typedef struct temp {
 temp tempData; // Create a struct_message called data
 
 //MARK: USER VARIABLES
-int GCTID   =       0;                //0 to 3
-char fileName[25] = "/data_GCT1.csv"; //file name for the data file on the SD card
-int pingInterval = 1000;              //500 to inf
+int GCTID               = 1;            //1 to 4
+char fileName[25]       = "/data_GCT1.csv";   //file name for the data file on the SD card
+int pingInterval        = 1000;               //500 to inf
+uint8_t masterAdress[]  = {0x48, 0xE7, 0x29, 0x8C, 0x73, 0x18};
 
 //MARK: PIN DEFINITIONS
 #define oneWireBus  4
@@ -49,7 +50,7 @@ int MOSI_PIN    = 23;   // Master Out Slave In pin
 //Do not touch these!!!
 char filename[25] = "";
 #define NUM_SENSORS 9
-char timestamp[19];  // Make this a global variable
+char timestamp[19];
 char line[1000];
 #define numMasters 1
 File file;
@@ -58,7 +59,6 @@ bool loggingStatus = false;
 
 Adafruit_NeoPixel strip(1, LED_PIN, NEO_GRB + NEO_KHZ800);  // Create an instance of the Adafruit_NeoPixel class
 
-uint8_t masterAdress[] = {0x48, 0xE7, 0x29, 0x8C, 0x73, 0x18};
 esp_now_peer_info_t peerInfo[numMasters];
 
 RTC_DS3231 rtc;
@@ -194,8 +194,18 @@ String tempToString(String timestamp) {//MARK: To String
 void writeToSD(String dataString) { //MARK: Write to SD
     //Serial.print (dataString);
     file = SD.open(fileName, FILE_APPEND); // Open the file in append mode
-    file.print(dataString);
-    file.close();
+
+  if (!file){       
+    Serial.println("Failed to write to file");
+
+    while (true)
+    {
+      updateStatusLED(5); //MARK: Implement error handling, currently, the will still acationally display readiness of operation
+    }
+  }
+
+  file.print(dataString);
+  file.close();
 }
 
 
@@ -233,12 +243,12 @@ void checkActionID(int actionID){
       break;
 
     case 1002:
-      Serial.println("Start logging");
+      Serial.println("Logging in process");
       loggingStatus = true;
       break;
     
     case 1003:
-      Serial.println("Stop logging");
+      Serial.println("Not logging");
       loggingStatus = false;
       break;
 
@@ -329,14 +339,14 @@ void setup() { //MARK: SETUP
 
 void loop(){
   unsigned long currentConection = millis();
-  if (currentConection - sinceLastConnection > pingInterval+1000) {
-    updateStatusLED(6);
+  if (currentConection - sinceLastConnection > pingInterval + 1000) {
+    updateStatusLED(6); // Blink yellow
   }else{
     if (loggingStatus)
     {
-      updateStatusLED(3);
+      updateStatusLED(3); // Constant green
     }else{
-      updateStatusLED(2);
+      updateStatusLED(2); // Blink green
     }
   }
 }
