@@ -56,6 +56,7 @@ char line[1000];
 File file;
 unsigned long sinceLastConnection = 0;
 bool loggingStatus = false;
+bool callbackEnabled = true;
 
 Adafruit_NeoPixel strip(1, LED_PIN, NEO_GRB + NEO_KHZ800);  // Create an instance of the Adafruit_NeoPixel class
 
@@ -100,34 +101,31 @@ void updateStatusLED(int status, int blinkIntervall = 1000){ //MARK: Update stat
     {
 
     case 0:
-        strip.setPixelColor(0, strip.Color(0, 0, 0)); // Turn off the LED
+        strip.setPixelColor(0, strip.Color(0, 0, 0));       // Turn off the LED
         break;
+
     case 1:
         strip.setPixelColor(0, strip.Color(255, 100, 0));   // Constant yellow
         break;
     
     case 2:
-        blinkLED(0, 255, 0, blinkIntervall);    // Blink the LED in green
+        blinkLED(0, 255, 0, blinkIntervall);                // Blink the LED in green
         break;
     
     case 3:
-        strip.setPixelColor(0, strip.Color(0, 255, 0)); // Constant green
+        strip.setPixelColor(0, strip.Color(0, 255, 0));     // Constant green
         break;
 
     case 4:
-        strip.setPixelColor(0, strip.Color(255, 0, 0)); // Constant red
+        strip.setPixelColor(0, strip.Color(255, 0, 0));     // Constant red
         break;
 
     case 5:
-        blinkLED(255, 0, 0, blinkIntervall);    // Blink the LED in red
+        blinkLED(255, 0, 0, blinkIntervall);                // Blink the LED in red
         break;
 
     case 6:
-        blinkLED(255, 100, 0, blinkIntervall);  // Blink the LED in yellow
-        break;
-
-    case 7:
-        strip.setPixelColor(0, strip.Color(0, 0, 255)); // Constant blue
+        blinkLED(255, 100, 0, blinkIntervall);              // Blink the LED in yellow
         break;
     
     default:
@@ -200,6 +198,7 @@ void writeToSD(String dataString) { //MARK: Write to SD
 
     while (true)
     {
+      callbackEnabled = false;
       updateStatusLED(5); //MARK: Implement error handling, currently, the will still acationally display readiness of operation
     }
   }
@@ -259,13 +258,15 @@ void checkActionID(int actionID){
 }
 
 
-void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {  //registered callback
+    if(!callbackEnabled){return;} //if the callback is disabled, return
     Serial.print("\r\nLast Packet Send Status:\t");
     Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
 }
 
 
-void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
+void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) { //registered callback
+    if(!callbackEnabled){return;} //if the callback is disabled, return
     int receivedData;
     memcpy(&receivedData, incomingData, sizeof(receivedData));
     Serial.print("Received: ");
@@ -290,8 +291,8 @@ void setup() { //MARK: SETUP
         return;
     }
 
-    esp_now_register_send_cb(OnDataSent);
-    esp_now_register_recv_cb(OnDataRecv); // Register callbacks
+    esp_now_register_send_cb(OnDataSent); // Register callbacks
+    esp_now_register_recv_cb(OnDataRecv);
 
     for (int i = 0; i < numMasters; i++) {
         memcpy(peerInfo[i].peer_addr, masterAdress, 6);
