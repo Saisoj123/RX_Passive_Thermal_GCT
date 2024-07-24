@@ -289,25 +289,7 @@ void setup() { //MARK: SETUP
   //------------------ NEOPIXEL - INIT - END ------------------
   updateStatusLED(1); 
 
-  //--------------- SD CARD - INIT - START -----------------
-  while (!SD.begin(SD_CS_PIN)){
-    updateStatusLED(5);
-    Serial.println("SD Card Mount:\t\tFailed");
-  }
-  Serial.println("SD Card Mount:\t\tSuccess");
-
-  strncpy(fileName, "/data_GCT1.csv", sizeof(fileName));
-  File file = SD.open(fileName, FILE_APPEND);
-    
-  while(!file){
-      Serial.println("Writing to file:\tFailed");
-      updateStatusLED(5);
-  }
-  Serial.println("Writing to file:\tSuccess");
-    
-    file.close();
-  //--------------- SD CARD - INIT - END  ------------------
-
+  
   //--------------- DS18B20 - INIT - START -----------------
   sensors.begin();        // Start the DS18B20 sensors
   sensors.setResolution(12);
@@ -345,8 +327,27 @@ void setup() { //MARK: SETUP
   Serial.print(get_timestamp());
   Serial.println(")");
 
-  //rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); //uncomment to set the RTC to the compile time
+  rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); //uncomment to set the RTC to the compile time
   //--------------- RTC - INIT - END -----------------
+
+//--------------- SD CARD - INIT - START -----------------
+  while (!SD.begin(SD_CS_PIN)){
+    updateStatusLED(5);
+    Serial.println("SD Card Mount:\t\tFailed");
+  }
+  Serial.println("SD Card Mount:\t\tSuccess");
+
+  strncpy(fileName, "/data_GCT1.csv", sizeof(fileName));
+  File file = SD.open(fileName, FILE_APPEND);
+    
+  while(!file){
+      Serial.println("Writing to file:\tFailed");
+      updateStatusLED(5);
+  }
+  Serial.println("Writing to file:\tSuccess");
+    
+    file.close();
+  //--------------- SD CARD - INIT - END  ------------------
 
   //--------------- ESP NOW - INIT - BEGIN -----------------
     WiFi.mode(WIFI_STA);
