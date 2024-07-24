@@ -33,7 +33,7 @@ temp tempData; // Create a struct_message called data
 int GCTID               = 1;            //1 to 4
 char fileName[25]       = "/data_GCT1.csv";   //file name for the data file on the SD card
 int pingInterval        = 1000;               //500 to inf
-uint8_t masterAdress[]  = {0x48, 0xE7, 0x29, 0x8C, 0x73, 0x18};
+uint8_t masterAdress[]  = {0x48, 0xE7, 0x29, 0x8C, 0x6B, 0x5C};
 
 //MARK: PIN DEFINITIONS
 #define oneWireBus  4
@@ -44,6 +44,9 @@ int SD_CS_PIN   = 5;    // Chip Select pin //MARK: SPI_PIN
 int SCK_PIN     = 18;   // Clock pin
 int MISO_PIN    = 19;   // Master In Slave Out pin
 int MOSI_PIN    = 23;   // Master Out Slave In pin
+
+//clock SDA = 21
+//clock SCL = 22
 
 
 //MARK: SYSTEM VARIABLES
@@ -278,17 +281,81 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
 void setup() { //MARK: SETUP
   Serial.begin(115200);   // Start the Serial Monitor
 
+  Serial.println("\n\n\nSELF CHECK:\n");
+
   //------------------ NEOPIXEL - INIT - BEGIN ------------------
   strip.begin(); // Initialize the NeoPixel library
   strip.show();  // Initialize all pixels to 'off'
   //------------------ NEOPIXEL - INIT - END ------------------
   updateStatusLED(1); 
-  //--------------- ESP NOW - INIT - END -----------------
+
+  //--------------- SD CARD - INIT - START -----------------
+  while (!SD.begin(SD_CS_PIN)){
+    updateStatusLED(5);
+    Serial.println("SD Card Mount:\t\tFailed");
+  }
+  Serial.println("SD Card Mount:\t\tSuccess");
+
+  strncpy(fileName, "/data_GCT1.csv", sizeof(fileName));
+  File file = SD.open(fileName, FILE_APPEND);
+    
+  while(!file){
+      Serial.println("Writing to file:\tFailed");
+      updateStatusLED(5);
+  }
+  Serial.println("Writing to file:\tSuccess");
+    
+    file.close();
+  //--------------- SD CARD - INIT - END  ------------------
+
+  //--------------- DS18B20 - INIT - START -----------------
+  sensors.begin();        // Start the DS18B20 sensors
+  sensors.setResolution(12);
+  
+
+
+  //--------------- DS18B20 - INIT - END -----------------
+  sensors.begin();        // Start the DS18B20 sensors
+  sensors.setResolution(12);
+  
+  // Loop over the sensors and display the temperature for each one
+  for (int i = 0; i < NUM_SENSORS; i++) {
+    sensors.requestTemperatures();
+    float temperature = sensors.getTempCByIndex(i);
+    if (temperature == -127.00) {
+      Serial.print("Init Sensor #");
+      Serial.print(i+1);
+      Serial.println(":\t\tFailed");
+    } else {
+      Serial.print("Init Sensor #");
+      Serial.print(i+1);
+      Serial.print(":\t\tSuccess (");
+      Serial.print(temperature);
+      Serial.println("C)");
+    }
+  }
+
+  //--------------- RTC - INIT - START -----------------
+  if (! rtc.begin()) {
+    Serial.println("Init RTC:\t\tFailed");
+    updateStatusLED(4);
+    while (true){}
+  }
+  Serial.print("Init RTC:\t\tSuccess (");
+  Serial.print(get_timestamp());
+  Serial.println(")");
+
+  //rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); //uncomment to set the RTC to the compile time
+  //--------------- RTC - INIT - END -----------------
+
+  //--------------- ESP NOW - INIT - BEGIN -----------------
     WiFi.mode(WIFI_STA);
 
     if (esp_now_init() != ESP_OK) {
-        Serial.println("Error initializing ESP-NOW");
+        Serial.println("ESP-NOW Initialization:\tFailed");
         return;
+    }else{
+        Serial.println("ESP-NOW Initialization:\tSuccess");
     }
 
     esp_now_register_send_cb(OnDataSent); // Register callbacks
@@ -300,41 +367,15 @@ void setup() { //MARK: SETUP
         peerInfo[i].encrypt = false;
         
         if (esp_now_add_peer(&peerInfo[i]) != ESP_OK){
-            Serial.println("Failed to add peer");
+            Serial.println("ESP-NOW Peer Addition:\tFailed");
             return;
+        }else{
+            Serial.println("ESP-NOW Peer Addition:\tSuccess");
         }
     }
   //--------------- ESP NOW - INIT - END -----------------
+  Serial.println("\nSELF-CHECK COMPLET\n\n\n");
 
-  //--------------- SD CARD - INIT - START -----------------
-  while (!SD.begin(SD_CS_PIN)){
-    updateStatusLED(5);
-    Serial.println("Card Mount Failed");
-  }
-
-  strncpy(fileName, "/data_GCT1.csv", sizeof(fileName));
-  File file = SD.open(fileName, FILE_APPEND);
-    
-  while(!file){
-      Serial.println("Failed to open file for writing");
-      updateStatusLED(5);
-  }
-    
-    file.close();
-  //--------------- SD CARD - INIT - END  ------------------
-
-  //--------------- DS18B20 - INIT - START -----------------
-  sensors.begin();        // Start the DS18B20 sensors
-  //--------------- DS18B20 - INIT - END -----------------
-
-  //--------------- RTC - INIT - START -----------------
-  if (! rtc.begin()) {
-    Serial.println("Could not find RTC!");
-    updateStatusLED(4);
-    while (true){}
-  }
-  //rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); //uncomment to set the RTC to the compile time
-  //--------------- RTC - INIT - END -----------------
   updateStatusLED(0);
 }
 
