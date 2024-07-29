@@ -308,12 +308,18 @@ void setup() { //MARK: SETUP
       Serial.print("Init Sensor #");
       Serial.print(i+1);
       Serial.println(":\t\tFailed");
+      
+      while(temperature == -127.00){
+        updateStatusLED(5);
+        temperature = sensors.getTempCByIndex(i);
+      }
+
     } else {
       Serial.print("Init Sensor #");
       Serial.print(i+1);
       Serial.print(":\t\tSuccess (");
       Serial.print(temperature);
-      Serial.println("C)");
+      Serial.println(" C)");
     }
   }
 
@@ -327,7 +333,7 @@ void setup() { //MARK: SETUP
   Serial.print(get_timestamp());
   Serial.println(")");
 
-  rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); //uncomment to set the RTC to the compile time
+  //rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); //uncomment to set the RTC to the compile time //Set RTC time
   //--------------- RTC - INIT - END -----------------
 
 //--------------- SD CARD - INIT - START -----------------
