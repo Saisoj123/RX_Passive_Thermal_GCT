@@ -1,3 +1,7 @@
+// Bugs to fix:
+// X TODO: Status LED changes to yellow during established conection
+// 
+
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <RTClib.h>
@@ -339,21 +343,20 @@ void setup() { //MARK: SETUP
     Serial.println("Init RTC:\t\tFailed");
     updateStatusLED(4);
     while (true){}
-    // rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); //uncomment to set the RTC to the compile time //Set RTC time
     } else {
       Serial.print("Init RTC:\t\tSuccess (");
       Serial.print(get_timestamp());
       Serial.println(")"); 
   }
 
-DateTime now = rtc.now(); // Declare now here
+DateTime now = rtc.now(); // Declare "now" here
 if (now.year() < 2024) {
   Serial.print("WARNING: RCT compromised");
   updateStatusLED(7);
 }
-
+    
+//rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); //uncomment to set the RTC to the compile time //Set RTC time
   
-  rtc.adjust(DateTime(2000, 1, 1));
 //--------------- RTC - INIT - END -----------------
 
 //--------------- SD CARD - INIT - START -----------------
@@ -408,7 +411,7 @@ if (now.year() < 2024) {
 
 void loop(){
   unsigned long currentConection = millis();
-  if (currentConection - sinceLastConnection > pingInterval + 1000) {
+  if (currentConection - sinceLastConnection > pingInterval + 2000) {
     updateStatusLED(6); // Blink yellow
   }else{
     if (loggingStatus)
