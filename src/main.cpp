@@ -131,6 +131,17 @@ void updateStatusLED(int status, int blinkIntervall = 1000){ //MARK: Update stat
         blinkLED(255, 100, 0, blinkIntervall);              // Blink the LED in yellow
         break;
     
+    case 7://TODO: check, why it is not working (blinking red...) 
+        for (int i = 0; i < 10; i++) {
+          strip.setPixelColor(0, strip.Color(255, 0, 0));
+          strip.show();
+          delay(100);
+          strip.setPixelColor(0, strip.Color(0, 0, 0));
+          strip.show();
+          delay(100);
+        }
+        break;
+    
     default:
         break;
     }
@@ -328,13 +339,22 @@ void setup() { //MARK: SETUP
     Serial.println("Init RTC:\t\tFailed");
     updateStatusLED(4);
     while (true){}
+    // rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); //uncomment to set the RTC to the compile time //Set RTC time
+    } else {
+      Serial.print("Init RTC:\t\tSuccess (");
+      Serial.print(get_timestamp());
+      Serial.println(")"); 
   }
-  Serial.print("Init RTC:\t\tSuccess (");
-  Serial.print(get_timestamp());
-  Serial.println(")");
 
-  //rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); //uncomment to set the RTC to the compile time //Set RTC time
-  //--------------- RTC - INIT - END -----------------
+DateTime now = rtc.now(); // Declare now here
+if (now.year() < 2024) {
+  Serial.print("WARNING: RCT compromised");
+  updateStatusLED(7);
+}
+
+  
+  rtc.adjust(DateTime(2000, 1, 1));
+//--------------- RTC - INIT - END -----------------
 
 //--------------- SD CARD - INIT - START -----------------
   while (!SD.begin(SD_CS_PIN)){
