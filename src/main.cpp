@@ -1,6 +1,19 @@
+/*
+ * RX Passive Thermal GCT - Servant ESP32
+ * 
+ * Original code base: https://github.com/MoritzNelle/RX_Passive_Thermal_GCT
+ * Enhanced by Josias Kern using GitHub Copilot (GPT-4)
+ * 
+ * Enhancements include:
+ * - Automatic filename generation based on device ID
+ * - Watchdog timer for system reliability
+ * - Improved sensor validation and error handling
+ * - Robust SD card operations with remount capability
+ */
+
 // Bugs to fix:
 // X TODO: Status LED changes to yellow during established conection
-// 
+//
 
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -9,6 +22,8 @@
 #include <WiFi.h>
 #include <SD.h>
 #include <Adafruit_NeoPixel.h>
+#include <esp_task_wdt.h>
+#include "config.h"
 
 
 // Structure to send data, Must match the receiver structure
@@ -33,21 +48,18 @@ typedef struct temp {
 } temp;
 temp tempData; // Create a struct_message called data
 
-//MARK: USER VARIABLES
-int GCTID               = 1;            //1 to 4
-char fileName[25]       = "/data_GCT1.csv";   //file name for the data file on the SD card
-int pingInterval        = 1000;               //500 to inf
-uint8_t masterAdress[]  = {0x48, 0xE7, 0x29, 0x8C, 0x6B, 0x5C};
+//MARK: USER VARIABLES - Now using config.h
+char fileName[25];                      // Will be automatically set based on GCTID
+int pingInterval        = PING_INTERVAL_MS;        // From config.h
+uint8_t masterAddress[] = MASTER_MAC_ADDRESS;      // From config.h
 
 //MARK: PIN DEFINITIONS
 #define oneWireBus  4
 #define SD_CS       5
 #define LED_PIN     2
 
-int SD_CS_PIN   = 5;    // Chip Select pin //MARK: SPI_PIN
-int SCK_PIN     = 18;   // Clock pin
-int MISO_PIN    = 19;   // Master In Slave Out pin
-int MOSI_PIN    = 23;   // Master Out Slave In pin
+// SPI pins are configured in config.h
+// SD_CS_PIN, SCK_PIN, MISO_PIN, MOSI_PIN
 
 //clock SDA = 21
 //clock SCL = 22
@@ -135,7 +147,7 @@ void updateStatusLED(int status, int blinkIntervall = 1000){ //MARK: Update stat
         blinkLED(255, 100, 0, blinkIntervall);              // Blink the LED in yellow
         break;
     
-    case 7://TODO: check, why it is not working (blinking red...) 
+    case 7: // Fast red blink sequence for warnings
         for (int i = 0; i < 10; i++) {
           strip.setPixelColor(0, strip.Color(255, 0, 0));
           strip.show();
@@ -144,6 +156,8 @@ void updateStatusLED(int status, int blinkIntervall = 1000){ //MARK: Update stat
           strip.show();
           delay(100);
         }
+        // Don't call strip.show() again after the loop
+        return; // Exit early to avoid the strip.show() at the end
         break;
     
     default:
@@ -157,13 +171,29 @@ void updateStatusLED(int status, int blinkIntervall = 1000){ //MARK: Update stat
 void get_temperature() {
   sensors.requestTemperatures();
   for (int i = 0; i < NUM_SENSORS; i++) {
-    sensorData[i].temperature = sensors.getTempCByIndex(i);
+    float temp = sensors.getTempCByIndex(i);
+    
+    // Validate temperature reading
+    if (temp == DEVICE_DISCONNECTED_C || temp == -127.00 || temp < -55.0 || temp > 125.0) {
+      Serial.printf("Sensor %d: Invalid reading (%.2f°C)\n", i, temp);
+      sensorData[i].temperature = -999.0; // Error value
+    } else {
+      sensorData[i].temperature = temp;
+    }
   }
 }
 
 
 const char* get_timestamp() {
     DateTime now = rtc.now();
+    
+    // Validate RTC time
+    if (now.year() < 2020 || now.year() > 2050) {
+        Serial.printf("Warning: Invalid RTC year (%d)\n", now.year());
+        sprintf(timestamp, "INVALID-TIME");
+        return timestamp;
+    }
+    
     sprintf(timestamp, "%04d-%02d-%02d %02d:%02d:%02d", now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second());
     return timestamp;
 }
@@ -182,7 +212,7 @@ void print_temperature() {
 void send_data(int actionID, float value){
     TXdata.actionID = actionID;
     TXdata.value = value;
-    esp_err_t result = esp_now_send(masterAdress, (uint8_t *) &TXdata, sizeof(TXdata));
+    esp_err_t result = esp_now_send(masterAddress, (uint8_t *) &TXdata, sizeof(TXdata));
     Serial.print("Send: ");
     Serial.print(actionID);
     Serial.print(", ");
@@ -208,21 +238,47 @@ String tempToString(String timestamp) {//MARK: To String
 
 
 void writeToSD(String dataString) { //MARK: Write to SD
-    //Serial.print (dataString);
+    // Check if SD card is still available
+    if (!SD.begin(SD_CS_PIN)) {
+        Serial.println("SD Card not available for writing");
+        callbackEnabled = false;
+        updateStatusLED(5);
+        return;
+    }
+    
     file = SD.open(fileName, FILE_APPEND); // Open the file in append mode
 
-  if (!file){       
-    Serial.println("Failed to write to file");
-
-    while (true)
-    {
-      callbackEnabled = false;
-      updateStatusLED(5); //MARK: Implement error handling, currently, the will still acationally display readiness of operation
+    if (!file) {       
+        Serial.println("Failed to open file for writing");
+        
+        // Try to remount SD card
+        delay(500);
+        if (SD.begin(SD_CS_PIN)) {
+            Serial.println("SD Card remounted successfully");
+            file = SD.open(fileName, FILE_APPEND);
+            if (!file) {
+                Serial.println("Still failed to open file after remount");
+                callbackEnabled = false;
+                updateStatusLED(5);
+                return;
+            }
+        } else {
+            Serial.println("Failed to remount SD card");
+            callbackEnabled = false;
+            updateStatusLED(5);
+            return;
+        }
     }
-  }
 
-  file.print(dataString);
-  file.close();
+    size_t bytesWritten = file.print(dataString);
+    file.close();
+    
+    // Verify write was successful
+    if (bytesWritten == 0) {
+        Serial.println("Warning: No bytes written to SD card");
+    } else {
+        Serial.printf("Successfully wrote %d bytes to SD card\n", bytesWritten);
+    }
 }
 
 
@@ -239,11 +295,17 @@ void sendTempData(){ //MARK: SEND TEMPERATURE DATA
     tempData.sens8 = sensorData[7].temperature;
     tempData.sens9 = sensorData[8].temperature;
     
-    if (loggingStatus){
-      writeToSD(tempToString(get_timestamp()));
+    if (loggingStatus) {
+        writeToSD(tempToString(get_timestamp()));
     }
     
-    esp_err_t result = esp_now_send(masterAdress, (uint8_t *) &tempData, sizeof(tempData));
+    esp_err_t result = esp_now_send(masterAddress, (uint8_t *) &tempData, sizeof(tempData));
+    
+    if (result == ESP_OK) {
+        Serial.println("Temperature data sent successfully");
+    } else {
+        Serial.printf("Error sending temperature data: %s\n", esp_err_to_name(result));
+    }
 }
 
 
@@ -294,9 +356,27 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
 
 
 void setup() { //MARK: SETUP
+  // Initialize device ID from build flags
+#ifdef GCT_ID
+  int deviceGCTID = GCT_ID;
+#else
+  int deviceGCTID = 1; // Default fallback
+#endif
+  
+  // Generate filename based on GCTID
+  snprintf(fileName, sizeof(fileName), "GCT_%d.csv", deviceGCTID);
+  
   Serial.begin(115200);   // Start the Serial Monitor
 
+  // Initialize watchdog timer (30 seconds timeout)
+  esp_task_wdt_init(30, true);
+  esp_task_wdt_add(NULL);
+
   Serial.println("\n\n\nSELF CHECK:\n");
+  Serial.print("Device ID: GCT_");
+  Serial.println(deviceGCTID);
+  Serial.print("Filename: ");
+  Serial.println(fileName);
 
   //------------------ NEOPIXEL - INIT - BEGIN ------------------
   strip.begin(); // Initialize the NeoPixel library
@@ -309,24 +389,38 @@ void setup() { //MARK: SETUP
   sensors.begin();        // Start the DS18B20 sensors
   sensors.setResolution(12);
   
-
+  // Check number of sensors found
+  int deviceCount = sensors.getDeviceCount();
+  Serial.printf("Found %d DS18B20 sensors\n", deviceCount);
+  
+  if (deviceCount == 0) {
+    Serial.println("No DS18B20 sensors found!");
+    updateStatusLED(5);
+    delay(2000);
+  }
 
   //--------------- DS18B20 - INIT - END -----------------
-  sensors.begin();        // Start the DS18B20 sensors
-  sensors.setResolution(12);
   
   // Loop over the sensors and display the temperature for each one
   for (int i = 0; i < NUM_SENSORS; i++) {
     sensors.requestTemperatures();
     float temperature = sensors.getTempCByIndex(i);
-    if (temperature == -127.00) {
+    if (temperature == -127.00 || temperature == DEVICE_DISCONNECTED_C) {
       Serial.print("Init Sensor #");
       Serial.print(i+1);
       Serial.println(":\t\tFailed");
       
-      while(temperature == -127.00){
+      int retryCount = 0;
+      while ((temperature == -127.00 || temperature == DEVICE_DISCONNECTED_C) && retryCount < 5) {
         updateStatusLED(5);
+        delay(500);
+        sensors.requestTemperatures();
         temperature = sensors.getTempCByIndex(i);
+        retryCount++;
+      }
+      
+      if (retryCount >= 5) {
+        Serial.printf("Sensor #%d permanently failed after 5 retries\n", i+1);
       }
 
     } else {
@@ -343,39 +437,63 @@ void setup() { //MARK: SETUP
     Serial.println("Init RTC:\t\tFailed");
     updateStatusLED(4);
     while (true){}
-    } else {
-      Serial.print("Init RTC:\t\tSuccess (");
-      Serial.print(get_timestamp());
-      Serial.println(")"); 
+  } else {
+    Serial.print("Init RTC:\t\tSuccess (");
+    Serial.print(get_timestamp());
+    Serial.println(")"); 
   }
 
-DateTime now = rtc.now(); // Declare "now" here
-if (now.year() < 2024) {
-  Serial.print("WARNING: RCT compromised");
-  updateStatusLED(7);
-}
+  DateTime now = rtc.now(); // Declare "now" here
+  if (now.year() < 2024) {
+    Serial.println("WARNING: RTC compromised");
+    updateStatusLED(7);
+    delay(2000); // Show warning for 2 seconds
+  }
     
-//rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); //uncomment to set the RTC to the compile time //Set RTC time
+  // Only adjust RTC time if explicitly needed (comment out for production)
+  // rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); //uncomment to set the RTC to the compile time
   
-//--------------- RTC - INIT - END -----------------
+  //--------------- RTC - INIT - END -----------------
 
-//--------------- SD CARD - INIT - START -----------------
-  while (!SD.begin(SD_CS_PIN)){
+  //--------------- FILENAME GENERATION - BEGIN -----------------
+  // Generate filename based on GCTID
+  snprintf(fileName, sizeof(fileName), "/data_GCT%d.csv", GCTID);
+  Serial.printf("Using filename: %s\n", fileName);
+  //--------------- FILENAME GENERATION - END -----------------
+
+  //--------------- SD CARD - INIT - START -----------------
+  int sdRetryCount = 0;
+  while (!SD.begin(SD_CS_PIN) && sdRetryCount < 5) {
     updateStatusLED(5);
     Serial.println("SD Card Mount:\t\tFailed");
+    delay(1000);
+    sdRetryCount++;
   }
-  Serial.println("SD Card Mount:\t\tSuccess");
+  
+  if (sdRetryCount >= 5) {
+    Serial.println("SD Card Mount:\t\tPermanently failed after 5 retries");
+    updateStatusLED(5);
+    delay(2000);
+  } else {
+    Serial.println("SD Card Mount:\t\tSuccess");
+  }
 
-  strncpy(fileName, "/data_GCT1.csv", sizeof(fileName));
   File file = SD.open(fileName, FILE_APPEND);
     
-  while(!file){
-      Serial.println("Writing to file:\tFailed");
-      updateStatusLED(5);
-  }
-  Serial.println("Writing to file:\tSuccess");
+  if (!file) {
+    Serial.println("Writing to file:\tFailed");
+    updateStatusLED(5);
+    delay(1000);
+  } else {
+    Serial.println("Writing to file:\tSuccess");
+    
+    // Add header if file is empty
+    if (file.size() == 0) {
+      file.println("timestamp,gct_id,sensor_no,temperature");
+    }
     
     file.close();
+  }
   //--------------- SD CARD - INIT - END  ------------------
 
   //--------------- ESP NOW - INIT - BEGIN -----------------
@@ -392,7 +510,7 @@ if (now.year() < 2024) {
     esp_now_register_recv_cb(OnDataRecv);
 
     for (int i = 0; i < numMasters; i++) {
-        memcpy(peerInfo[i].peer_addr, masterAdress, 6);
+        memcpy(peerInfo[i].peer_addr, masterAddress, 6);
         peerInfo[i].channel = 0;  
         peerInfo[i].encrypt = false;
         
@@ -410,14 +528,16 @@ if (now.year() < 2024) {
 }
 
 void loop(){
+  // Feed the watchdog timer
+  esp_task_wdt_reset();
+  
   unsigned long currentConection = millis();
   if (currentConection - sinceLastConnection > pingInterval + 2000) {
     updateStatusLED(6); // Blink yellow
-  }else{
-    if (loggingStatus)
-    {
+  } else {
+    if (loggingStatus) {
       updateStatusLED(3); // Constant green
-    }else{
+    } else {
       updateStatusLED(2); // Blink green
     }
   }
