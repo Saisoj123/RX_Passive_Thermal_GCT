@@ -41,8 +41,10 @@
 #define TEMP_MAX_VALID          125.0       // Maximum valid temperature
 
 // ===== MASTER ESP32 MAC ADDRESS =====
-// Update this with your actual master device MAC address
-#define MASTER_MAC_ADDRESS      {0x48, 0xE7, 0x29, 0x8C, 0x6B, 0x5C}
+// This should be the MAC address of the TX (Master) ESP32
+// You can get this from the serial monitor when the master boots up
+// or from the upload log when flashing the master firmware
+#define MASTER_MAC_ADDRESS      {0x48, 0xE7, 0x29, 0x8C, 0x6B, 0x5C}  // Update with actual master MAC
 
 // ===== WATCHDOG CONFIGURATION =====
 #define WATCHDOG_TIMEOUT_SEC    30          // Watchdog timeout
